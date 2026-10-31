@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Next Month's Money Plan</title>
+<style>
+  :root{
+    --bg:#f6f4ef; --card:#ffffff; --ink:#1f2430; --mute:#6b7280; --line:#e5e1d8;
+    --accent:#2f6fed; --good:#1b8a5a; --bad:#d6453d; --warn:#c98a00; --bar:#dfe8fd;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#14161b; --card:#1d2027; --ink:#eceff4; --mute:#9aa3b2; --line:#2d313b;
+      --accent:#6d9bff; --good:#4cc48a; --bad:#ff7b72; --warn:#e5b84a; --bar:#26334f;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:24px 16px 60px}
+  .wrap{max-width:980px;margin:0 auto}
+  h1{margin:0 0 2px;font-size:28px;letter-spacing:-.5px}
+  .sub{color:var(--mute);margin:0 0 22px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);margin:0 0 12px}
+  .grid{display:grid;gap:10px}
+  .add{grid-template-columns:2fr 1.3fr 1fr 1fr auto}
+  @media(max-width:760px){.add{grid-template-columns:1fr 1fr}.add button{grid-column:1/-1}}
+  input,select,button{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px 11px;min-width:0}
+  input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
+  button{cursor:pointer;background:var(--accent);color:#fff;border:none;font-weight:600}
+  button:hover{filter:brightness(1.08)}
+  button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  button.danger{background:transparent;color:var(--bad);border:1px solid var(--bad)}
+  .stats{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .stat{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .stat small{display:block;color:var(--mute);font-size:12px}
+  .stat b{font-size:20px;font-variant-numeric:tabular-nums}
+  .good{color:var(--good)} .bad{color:var(--bad)} .warn{color:var(--warn)}
+  .verdict{margin-top:14px;padding:14px 16px;border-radius:12px;font-weight:600;border:1px solid var(--line)}
+  .verdict.good{border-color:var(--good)} .verdict.bad{border-color:var(--bad)}
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .row.sp{justify-content:space-between}
+  input[type=range]{flex:1;min-width:180px;padding:0;accent-color:var(--accent)}
+  .pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;font-weight:600}
+  .pill.dup{background:color-mix(in srgb,var(--warn) 20%,transparent);color:var(--warn)}
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line)}
+  th{font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.06em}
+  td.n,th.n{text-align:right}
+  tr.isdup td{background:color-mix(in srgb,var(--warn) 8%,transparent)}
+  .x{background:none;color:var(--mute);padding:2px 8px;font-size:18px}
+  .x:hover{color:var(--bad)}
+  .catrow{display:grid;grid-template-columns:120px 1fr 190px;gap:10px;align-items:center;padding:6px 0}
+  .track{height:12px;background:var(--bg);border-radius:99px;overflow:hidden;border:1px solid var(--line)}
+  .fill{height:100%;background:var(--bar);position:relative}
+  .fill i{position:absolute;left:0;top:0;bottom:0;background:var(--accent)}
+  .catrow .v{font-size:13px;text-align:right;color:var(--mute)}
+  .empty{color:var(--mute);text-align:center;padding:22px 0}
+  .tablewrap{overflow-x:auto}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Next Month's Money Plan</h1>
+  <p class="sub">Plan it, track it, and find out whether future-you is thrilled or filing a complaint.</p>
+
+  <div class="card">
+    <h2>Add an expense</h2>
+    <div class="grid add">
+      <input id="name" placeholder="What is it? (e.g. Netflix)">
+      <select id="cat"></select>
+      <input id="planned" type="number" min="0" step="any" placeholder="Projected ₹">
+      <input id="actual" type="number" min="0" step="any" placeholder="Actual ₹">
+      <button id="addBtn">Add</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Savings goal</h2>
+    <div class="row">
+      <span>Trim projected spending by</span>
+      <input id="slider" type="range" min="0" max="60" step="1" value="10">
+      <b id="sliderVal">10%</b>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row sp" style="margin-bottom:12px">
+      <h2 style="margin:0">Overview</h2>
+      <div class="row">
+        <label for="filter" style="color:var(--mute)">Category</label>
+        <select id="filter"></select>
+      </div>
+    </div>
+    <div class="grid stats" id="stats"></div>
+    <div class="verdict" id="verdict"></div>
+  </div>
+
+  <div class="card">
+    <h2>By category</h2>
+    <div id="cats"></div>
+  </div>
+
+  <div class="card">
+    <div class="row sp" style="margin-bottom:8px">
+      <h2 style="margin:0">Expenses <span id="dupInfo"></span></h2>
+      <div class="row">
+        <button class="ghost" id="dedupe">Remove duplicates</button>
+        <button class="ghost" id="sample">Load sample</button>
+        <button class="danger" id="reset">Reset all</button>
+      </div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Item</th><th>Category</th><th class="n">Projected</th><th class="n">Actual</th><th class="n">Diff</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const CATS = ["Housing","Food","Transport","Utilities","Health","Entertainment","Shopping","Education","Other"];
+const KEY = "moneyPlanV1";
+let items = [];
+let goal = 10;
+
+const $ = id => document.getElementById(id);
+const fmt = n => "₹" + Math.abs(n).toLocaleString("en-IN",{maximumFractionDigits:2});
+const signed = n => (n < 0 ? "−" : n > 0 ? "+" : "") + fmt(n);
+const esc = s => s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify({items,goal})); }catch(e){} }
+function load(){
+  try{
+    const d = JSON.parse(localStorage.getItem(KEY) || "null");
+    if(d){ items = d.items || []; goal = d.goal ?? 10; }
+  }catch(e){}
+}
+
+function dupKey(i){ return i.name.trim().toLowerCase() + "|" + i.cat; }
+function dupIds(){
+  const seen = {}, ids = new Set();
+  items.forEach(i => {
+    const k = dupKey(i);
+    (seen[k] = seen[k] || []).push(i.id);
+  });
+  Object.values(seen).forEach(a => { if(a.length > 1) a.forEach(id => ids.add(id)); });
+  return ids;
+}
+
+function add(){
+  const name = $("name").value.trim();
+  const planned = parseFloat($("planned").value) || 0;
+  const actual = parseFloat($("actual").value) || 0;
+  if(!name){ $("name").focus(); return; }
+  items.push({id: Date.now() + Math.random(), name, cat: $("cat").value, planned, actual});
+  $("name").value = $("planned").value = $("actual").value = "";
+  $("name").focus();
+  save(); render();
+}
+
+function render(){
+  const f = $("filter").value;
+  const dups = dupIds();
+  const view = items.filter(i => f === "All" || i.cat === f);
+
+  const planned = view.reduce((s,i) => s + i.planned, 0);
+  const actual = view.reduce((s,i) => s + i.actual, 0);
+  const diff = planned - actual;                      // + under projection, − over
+  const target = planned * (1 - goal/100);            // goal-adjusted budget
+  const goalAmt = planned - target;
+  const vsGoal = target - actual;                     // + beat the goal, − missed it
+
+  $("sliderVal").textContent = goal + "%";
+  $("stats").innerHTML = `
+    <div class="stat"><small>Projected spending</small><b>${fmt(planned)}</b></div>
+    <div class="stat"><small>Actual spending</small><b>${fmt(actual)}</b></div>
+    <div class="stat"><small>Difference (proj − actual)</small><b class="${diff>=0?'good':'bad'}">${signed(diff)}</b></div>
+    <div class="stat"><small>Savings goal (${goal}%)</small><b>${fmt(goalAmt)}</b></div>
+    <div class="stat"><small>Goal-adjusted budget</small><b>${fmt(target)}</b></div>
+    <div class="stat"><small>${vsGoal>=0?'Total saving':'Extra expenditure'} vs goal</small><b class="${vsGoal>=0?'good':'bad'}">${fmt(vsGoal)}</b></div>`;
+
+  const v = $("verdict");
+  if(!view.length){
+    v.className = "verdict"; v.textContent = "Nothing here yet. Add an expense and the numbers will start having opinions.";
+  } else if(vsGoal >= 0){
+    v.className = "verdict good";
+    v.textContent = `You're ${fmt(vsGoal)} under your goal-adjusted budget. Your wallet is sending a thank-you note.`;
+  } else if(diff >= 0){
+    v.className = "verdict warn";
+    v.textContent = `You're under projection by ${fmt(diff)}, but ${fmt(-vsGoal)} short of your ${goal}% savings goal. So close, yet so snacky.`;
+  } else {
+    v.className = "verdict bad";
+    v.textContent = `Over projection by ${fmt(-diff)} and ${fmt(-vsGoal)} past your goal budget. Time to have a quiet word with your impulse purchases.`;
+  }
+
+  // category breakdown
+  const byCat = {};
+  CATS.forEach(c => byCat[c] = {p:0,a:0});
+  view.forEach(i => { byCat[i.cat].p += i.planned; byCat[i.cat].a += i.actual; });
+  const max = Math.max(1, ...Object.values(byCat).map(c => Math.max(c.p, c.a)));
+  const used = CATS.filter(c => byCat[c].p || byCat[c].a);
+  $("cats").innerHTML = used.length ? used.map(c => {
+    const {p,a} = byCat[c];
+    return `<div class="catrow">
+      <div>${c}</div>
+      <div class="track" title="Dark = actual, light = projected"><div class="fill" style="width:${p/max*100}%"><i style="width:${p?Math.min(a/p,1)*100:100}%"></i></div></div>
+      <div class="v">${fmt(a)} / ${fmt(p)} <span class="${p-a>=0?'good':'bad'}">(${signed(p-a)})</span></div>
+    </div>`;
+  }).join("") : `<div class="empty">No categories to show yet.</div>`;
+
+  // table
+  $("rows").innerHTML = view.length ? view.map(i => {
+    const d = i.planned - i.actual, isDup = dups.has(i.id);
+    return `<tr class="${isDup?'isdup':''}">
+      <td>${esc(i.name)} ${isDup?'<span class="pill dup">duplicate</span>':''}</td>
+      <td>${i.cat}</td>
+      <td class="n">${fmt(i.planned)}</td>
+      <td class="n">${fmt(i.actual)}</td>
+      <td class="n ${d>=0?'good':'bad'}">${signed(d)}</td>
+      <td class="n"><button class="x" data-id="${i.id}" title="Delete">×</button></td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="6" class="empty">No expenses to show.</td></tr>`;
+
+  $("dupInfo").innerHTML = dups.size ? `<span class="pill dup">${dups.size} duplicate entries</span>` : "";
+  $("dedupe").disabled = !dups.size;
+  $("dedupe").style.opacity = dups.size ? 1 : .45;
+}
+
+function dedupe(){
+  const seen = new Set();
+  items = items.filter(i => { const k = dupKey(i); if(seen.has(k)) return false; seen.add(k); return true; });
+  save(); render();
+}
+
+function resetAll(){
+  if(!confirm("Wipe everything and start fresh?")) return;
+  items = []; goal = 10;
+  $("slider").value = 10; $("filter").value = "All";
+  $("name").value = $("planned").value = $("actual").value = "";
+  try{ localStorage.removeItem(KEY); }catch(e){}
+  render();
+}
+
+function sample(){
+  const s = [
+    ["Rent","Housing",12000,12000],["Groceries","Food",5000,5600],["Metro pass","Transport",1200,1100],
+    ["Electricity","Utilities",1500,1750],["Netflix","Entertainment",199,199],["Netflix","Entertainment",199,199],
+    ["Gym","Health",800,0],["Online course","Education",1500,1500],["Late-night biryani","Food",600,1400],["Sneakers","Shopping",2500,3200]
+  ];
+  s.forEach(([name,cat,planned,actual]) => items.push({id: Date.now()+Math.random(), name, cat, planned, actual}));
+  save(); render();
+}
+
+// setup
+$("cat").innerHTML = CATS.map(c => `<option>${c}</option>`).join("");
+$("filter").innerHTML = ["All",...CATS].map(c => `<option>${c}</option>`).join("");
+$("addBtn").onclick = add;
+["name","planned","actual"].forEach(id => $(id).addEventListener("keydown", e => { if(e.key === "Enter") add(); }));
+$("slider").oninput = e => { goal = +e.target.value; save(); render(); };
+$("filter").onchange = render;
+$("reset").onclick = resetAll;
+$("dedupe").onclick = dedupe;
+$("sample").onclick = sample;
+$("rows").addEventListener("click", e => {
+  const b = e.target.closest(".x"); if(!b) return;
+  items = items.filter(i => String(i.id) !== b.dataset.id);
+  save(); render();
+});
+
+load();
+$("slider").value = goal;
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+I am thinking about planning next month's spending. I want you to create an application using html, to categorize my spending by category and any dublicates. A savings slider, category filter, reset, projected spending, actual spending, difference in spending, total saving or lor extra expenditure. One complete HTML file in a single code block.

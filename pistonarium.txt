@@ -1,0 +1,1 @@
+I am thinking about exploring how a piston works. I want you to make a HTML project to help me understand it. It should have tweaks, like connecting rod length, piston volume, stroke length, and adjustability to check how multiple pistons, would work together.  It needs to be interactive, that i can rotate and play with it. Create one complete HTML file in a single code block.

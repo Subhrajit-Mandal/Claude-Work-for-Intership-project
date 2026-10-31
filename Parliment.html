@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parliament Division Simulator</title>
+<style>
+  :root{
+    --bg:#0f1220; --panel:#181c30; --panel2:#20253f; --ink:#e9ecf8; --mute:#8c93b5;
+    --line:#2d3354; --aye:#2ecc71; --nay:#e74c3c; --abs:#8e96ad; --gold:#f5c451;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,#1c2147 0%,var(--bg) 60%);color:var(--ink);
+    font-family:Georgia,"Times New Roman",serif;min-height:100vh}
+  h1,h2,h3{margin:0;font-weight:normal}
+  header{text-align:center;padding:26px 16px 6px}
+  header h1{font-size:2rem;letter-spacing:.06em}
+  header p{color:var(--mute);margin:6px 0 0;font-style:italic}
+  main{max-width:1150px;margin:auto;padding:16px;display:grid;gap:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .card h2{font-size:1.1rem;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);margin-bottom:12px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:820px){.grid2{grid-template-columns:1fr}}
+  label{font-size:.8rem;color:var(--mute);display:block;margin-bottom:4px}
+  input[type=text],input[type=number],select{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+    padding:9px 10px;border-radius:8px;font:inherit;font-size:.95rem}
+  input[type=color]{width:42px;height:38px;border:none;background:none;padding:0;cursor:pointer}
+  button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--ink);
+    padding:9px 14px;border-radius:8px;transition:.15s}
+  button:hover{border-color:var(--gold);transform:translateY(-1px)}
+  button.primary{background:var(--gold);color:#241c00;border-color:var(--gold);font-weight:bold}
+  button:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  .prow{display:grid;grid-template-columns:42px 1fr 80px 92px 34px;gap:8px;align-items:center;margin-bottom:8px}
+  .prow .gov{display:flex;align-items:center;gap:5px;font-size:.78rem;color:var(--mute)}
+  .prow .gov input{accent-color:var(--gold)}
+  .status{font-size:.85rem;margin-top:8px}
+  .ok{color:var(--aye)} .bad{color:var(--nay)}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+  .stat{background:var(--panel2);border-radius:10px;padding:10px;text-align:center}
+  .stat b{display:block;font-size:1.5rem;color:var(--gold)}
+  .stat span{font-size:.72rem;color:var(--mute);text-transform:uppercase;letter-spacing:.06em}
+  .speaker{background:linear-gradient(135deg,#2a2150,#1a2a4a);border:1px solid var(--gold);border-radius:14px;padding:18px;text-align:center}
+  .speaker small{color:var(--mute);letter-spacing:.15em;text-transform:uppercase;font-size:.7rem}
+  .speaker .motion{font-size:1.5rem;margin:8px 0;font-style:italic}
+  .hall{position:relative}
+  svg{width:100%;height:auto;display:block}
+  .seat{transition:fill .7s ease, opacity .3s}
+  .seat.pulse{animation:pulse .5s ease-in-out infinite alternate}
+  @keyframes pulse{from{opacity:1}to{opacity:.25}}
+  .legend{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:center;margin-top:10px;font-size:.85rem}
+  .legend i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+  .legend em{color:var(--mute);font-size:.72rem;font-style:normal}
+  .tabs{display:flex;gap:8px;justify-content:center;margin-top:10px}
+  .tabs button.active{border-color:var(--gold);color:var(--gold)}
+  table{width:100%;border-collapse:collapse;font-size:.92rem}
+  th,td{padding:8px 10px;text-align:center;border-bottom:1px solid var(--line)}
+  th{color:var(--mute);font-weight:normal;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em}
+  td:first-child,th:first-child{text-align:left}
+  tfoot td{font-weight:bold;border-top:2px solid var(--gold);border-bottom:none}
+  .aye{color:var(--aye)} .nay{color:var(--nay)} .abs{color:var(--abs)}
+  .verdict{text-align:center;padding:16px;border-radius:12px;margin-bottom:14px;font-size:1.4rem;letter-spacing:.08em}
+  .verdict.pass{background:rgba(46,204,113,.12);border:1px solid var(--aye);color:var(--aye)}
+  .verdict.fail{background:rgba(231,76,60,.12);border:1px solid var(--nay);color:var(--nay)}
+  .verdict small{display:block;font-size:.8rem;letter-spacing:0;color:var(--mute);font-style:italic;margin-top:6px}
+  .bar{display:flex;height:22px;border-radius:11px;overflow:hidden;margin:12px 0;background:var(--panel2)}
+  .bar div{transition:width 1s ease}
+  .hidden{display:none}
+  .row{display:flex;gap:10px;align-items:end}
+  .row>div{flex:1}
+  .hint{font-size:.75rem;color:var(--mute);margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🏛️ Parliament Division Simulator</h1>
+  <p>Where motions are tabled, whips are cracked, and nobody reads the bill.</p>
+</header>
+
+<main>
+  <!-- SETUP -->
+  <section class="grid2">
+    <div class="card">
+      <h2>1 · The Province</h2>
+      <div class="row">
+        <div><label>Province / Legislature name</label><input type="text" id="provName" value="Province of Aldoria"></div>
+        <div style="max-width:150px"><label>Total members (ministers)</label><input type="number" id="totalSeats" min="3" max="500" value="120"></div>
+      </div>
+      <div style="margin-top:14px">
+        <label>Parties — colour · name · seats · government?</label>
+        <div id="partyRows"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="addParty">+ Add party</button>
+          <button id="autoFill">⚖️ Auto-balance seats</button>
+        </div>
+        <div class="status" id="seatStatus"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>2 · The Motion</h2>
+      <label>Subject matter to be presented by the Speaker</label>
+      <input type="text" id="topic" value="The Mandatory Afternoon Nap Act, 2026">
+      <div style="display:flex;gap:8px;margin:10px 0;flex-wrap:wrap">
+        <button id="randTopic">🎲 Surprise me</button>
+      </div>
+      <div class="row">
+        <div><label>Passing rule</label>
+          <select id="rule">
+            <option value="simple">Simple majority (Aye &gt; Nay)</option>
+            <option value="absolute">Absolute majority (&gt; ½ of the House)</option>
+            <option value="two3">Two-thirds of the House</option>
+          </select></div>
+        <div><label>Rebellion rate: <span id="rebVal">12</span>%</label>
+          <input type="range" id="rebel" min="0" max="50" value="12" style="width:100%;accent-color:#f5c451"></div>
+      </div>
+      <label style="margin-top:10px;display:flex;gap:8px;align-items:center;color:var(--ink)">
+        <input type="checkbox" id="freeVote" style="accent-color:#f5c451"> Free vote (whips go home, chaos enters)
+      </label>
+      <div class="hint">Government members lean Aye, opposition leans Nay. Rebels, abstainers and absent-minded members spice it up.</div>
+      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="primary" id="convene">🔔 Convene the House</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <section class="card hidden" id="statsCard">
+    <h2 id="provTitle">Province overview</h2>
+    <div class="stats" id="stats"></div>
+  </section>
+
+  <!-- SPEAKER -->
+  <section class="speaker hidden" id="speakerBox">
+    <small>The Speaker rises and presents the motion</small>
+    <div class="motion" id="motionText"></div>
+    <div style="color:var(--mute);font-size:.85rem">“Order! Order! Those in favour say Aye — those against, say Nay — those confused, please see the canteen.”</div>
+    <div style="margin-top:12px">
+      <button class="primary" id="callVote">🗳️ Call the division</button>
+    </div>
+  </section>
+
+  <!-- HALL -->
+  <section class="card hidden" id="hallCard">
+    <h2>The Chamber</h2>
+    <div class="hall"><svg id="hall" viewBox="0 0 1000 560"></svg></div>
+    <div class="tabs hidden" id="tabs">
+      <button id="tabParty" class="active">🎨 Party colours</button>
+      <button id="tabVote">🗳️ Vote colours</button>
+    </div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <!-- RESULTS -->
+  <section class="card hidden" id="resultCard">
+    <h2>Result Sheet</h2>
+    <div id="verdict" class="verdict"></div>
+    <div class="bar" id="bar"></div>
+    <table>
+      <thead><tr><th>Party</th><th>Seats</th><th class="aye">Aye</th><th class="nay">Nay</th><th class="abs">Abstain</th><th>Rebels</th></tr></thead>
+      <tbody id="resBody"></tbody>
+      <tfoot id="resFoot"></tfoot>
+    </table>
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+      <button id="revote">🔁 Re-run the vote</button>
+      <button id="newTopic">📜 New motion</button>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const NS = 'http://www.w3.org/2000/svg';
+const C = {aye:'#2ecc71', nay:'#e74c3c', abs:'#8e96ad'};
+
+let parties = [
+  {name:'Progressive Union', color:'#e74c3c', seats:38, gov:true},
+  {name:'Green Alliance',    color:'#2ecc71', seats:17, gov:true},
+  {name:'National Front',    color:'#3498db', seats:36, gov:false},
+  {name:'Liberty Party',     color:'#f1c40f', seats:19, gov:false},
+  {name:'Independents',      color:'#9b59b6', seats:10, gov:false},
+];
+const palette = ['#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6','#e67e22','#1abc9c','#fd79a8','#95a5a6','#00cec9'];
+const topics = [
+  'The Mandatory Afternoon Nap Act, 2026',
+  'A Bill to Rename Tuesday "Slightly Better Monday"',
+  'The Free Biryani for Public Servants Amendment',
+  'Motion to Install Speed Breakers in Parliament Corridors',
+  'The Daylight Saving Time Abolition Bill',
+  'The National Chai Break Protection Act',
+  'A Motion to Ban Meetings That Could Have Been Emails',
+  'The Public Transport Expansion Bill, 2026',
+  'Resolution to Declare Monsoon an Official Holiday Season',
+  'The Rooftop Solar for Every Household Act'
+];
+const verdictQuips = {
+  pass:['The Ayes have it! Someone alert the stationery department.','Carried! The Speaker is thrilled; the opposition is drafting a strongly-worded letter.','Passed! History will remember this vote — mostly the lunch that followed.'],
+  fail:['The Nays have it. Back to the drawing board (and the canteen).','Defeated! The bill has been gently escorted out of the building.','Motion falls. A moment of silence, then a coffee break.']
+};
+
+let seats = [];        // {el, party, angle}
+let votes = [];        // 'aye'|'nay'|'abs'
+let rebels = [];
+let mode = 'party';
+let timers = [];
+
+/* ---------- Party editor ---------- */
+function renderParties(){
+  const box = $('partyRows'); box.innerHTML = '';
+  parties.forEach((p,i)=>{
+    const r = document.createElement('div'); r.className='prow';
+    r.innerHTML = `<input type="color" value="${p.color}">
+      <input type="text" value="${esc(p.name)}" maxlength="28">
+      <input type="number" min="1" max="500" value="${p.seats}">
+      <label class="gov" style="margin:0"><input type="checkbox" ${p.gov?'checked':''}> Govt</label>
+      <button title="Remove" style="padding:6px">✕</button>`;
+    const [col,name,num,gov,del] = [r.children[0],r.children[1],r.children[2],r.children[3].children[0],r.children[4]];
+    col.oninput = ()=>{p.color=col.value;updateStatus()};
+    name.oninput = ()=>{p.name=name.value};
+    num.oninput = ()=>{p.seats=Math.max(0,parseInt(num.value)||0);updateStatus()};
+    gov.onchange = ()=>{p.gov=gov.checked};
+    del.onclick = ()=>{ if(parties.length>2){parties.splice(i,1);renderParties();} };
+    box.appendChild(r);
+  });
+  updateStatus();
+}
+function updateStatus(){
+  const total = parseInt($('totalSeats').value)||0;
+  const sum = parties.reduce((a,p)=>a+p.seats,0);
+  const s = $('seatStatus');
+  if(sum===total){ s.className='status ok'; s.textContent=`✔ ${sum} of ${total} seats allocated. The arithmetic gods are pleased.`; }
+  else { s.className='status bad'; s.textContent=`✖ Party seats add up to ${sum}, but the House has ${total}. ${sum<total?(total-sum)+' seat(s) unclaimed':(sum-total)+' seat(s) too many'}.`; }
+  $('convene').disabled = sum!==total || total<3;
+}
+$('totalSeats').oninput = updateStatus;
+$('addParty').onclick = ()=>{
+  if(parties.length>=10) return;
+  parties.push({name:'New Party '+(parties.length+1), color:palette[parties.length%palette.length], seats:1, gov:false});
+  renderParties();
+};
+$('autoFill').onclick = ()=>{
+  const total = parseInt($('totalSeats').value)||0;
+  const sum = parties.reduce((a,p)=>a+p.seats,0)||1;
+  let acc=0;
+  parties.forEach(p=>{p.seats=Math.max(1,Math.round(p.seats/sum*total)); acc+=p.seats;});
+  // fix rounding drift on the largest party
+  const big = parties.reduce((a,b)=>a.seats>=b.seats?a:b);
+  big.seats += total-acc;
+  renderParties();
+};
+$('randTopic').onclick = ()=>{ $('topic').value = topics[Math.floor(Math.random()*topics.length)]; };
+$('rebel').oninput = ()=>{ $('rebVal').textContent = $('rebel').value; };
+
+/* ---------- Hemicycle layout ---------- */
+function buildHall(){
+  const svg = $('hall'); svg.innerHTML=''; seats=[];
+  const total = parties.reduce((a,p)=>a+p.seats,0);
+  const cx=500, cy=520, R=450, r0=190;
+  const rows = Math.max(2, Math.round(Math.sqrt(total/2.2)));
+  const radii = Array.from({length:rows},(_,i)=> r0 + (R-r0)*(rows===1?1:i/(rows-1)));
+  const rsum = radii.reduce((a,b)=>a+b,0);
+  let counts = radii.map(r=>Math.max(1,Math.round(total*r/rsum)));
+  let diff = total - counts.reduce((a,b)=>a+b,0);
+  counts[rows-1]+=diff;
+
+  const rowGap = (R-r0)/(rows-1);
+  let pts=[];
+  radii.forEach((r,i)=>{
+    const n=counts[i];
+    for(let j=0;j<n;j++){
+      const a = n===1 ? Math.PI/2 : Math.PI - Math.PI*j/(n-1);
+      pts.push({x:cx+r*Math.cos(a), y:cy-r*Math.sin(a), a, r, arc: n>1? Math.PI*r/(n-1):rowGap});
+    }
+  });
+  const dot = Math.max(3, Math.min(rowGap, Math.min(...radii.map((r,i)=>counts[i]>1?Math.PI*r/(counts[i]-1):999))) * 0.42);
+  pts.sort((p,q)=> q.a-p.a || p.r-q.r);
+
+  // government parties on the left benches, opposition on the right
+  const order = [...parties.map((p,i)=>({p,i}))].sort((a,b)=> (b.p.gov-a.p.gov) || (a.i-b.i));
+  let k=0;
+  order.forEach(({p,i})=>{
+    for(let s=0;s<p.seats;s++,k++){
+      const pt = pts[k];
+      const c = document.createElementNS(NS,'circle');
+      c.setAttribute('cx',pt.x.toFixed(1)); c.setAttribute('cy',pt.y.toFixed(1)); c.setAttribute('r',dot.toFixed(1));
+      c.setAttribute('class','seat'); c.setAttribute('fill',p.color);
+      const t = document.createElementNS(NS,'title'); t.textContent = p.name; c.appendChild(t);
+      svg.appendChild(c);
+      seats.push({el:c, party:i, t});
+    }
+  });
+
+  // Speaker's podium
+  const g = document.createElementNS(NS,'g');
+  g.innerHTML = `<rect x="440" y="470" width="120" height="70" rx="10" fill="#3a3160" stroke="#f5c451" stroke-width="2"/>
+    <text x="500" y="500" text-anchor="middle" fill="#f5c451" font-size="14" font-family="Georgia" letter-spacing="2">SPEAKER</text>
+    <text x="500" y="522" text-anchor="middle" fill="#8c93b5" font-size="11" font-family="Georgia">⚖ ⚖ ⚖</text>`;
+  svg.appendChild(g);
+  const tbl = document.createElementNS(NS,'text');
+  tbl.setAttribute('x',500); tbl.setAttribute('y',420); tbl.setAttribute('text-anchor','middle');
+  tbl.setAttribute('fill','#8c93b5'); tbl.setAttribute('font-size','12'); tbl.setAttribute('font-family','Georgia');
+  tbl.textContent = '◄ Government benches        Opposition benches ►';
+  svg.appendChild(tbl);
+}
+
+function renderLegend(){
+  const lg = $('legend'); lg.innerHTML='';
+  if(mode==='party'){
+    parties.forEach(p=>{
+      lg.innerHTML += `<span><i style="background:${p.color}"></i>${esc(p.name)} <em>(${p.seats} · ${p.gov?'Govt':'Opp'})</em></span>`;
+    });
+  } else {
+    lg.innerHTML = `<span><i style="background:${C.aye}"></i>Aye</span><span><i style="background:${C.nay}"></i>Nay</span><span><i style="background:${C.abs}"></i>Abstained</span>`;
+  }
+}
+
+function setMode(m){
+  mode=m;
+  $('tabParty').classList.toggle('active',m==='party');
+  $('tabVote').classList.toggle('active',m==='vote');
+  seats.forEach((s,idx)=>{
+    s.el.style.transitionDelay = (idx%40)*12+'ms';
+    s.el.setAttribute('fill', m==='party' ? parties[s.party].color : C[votes[idx]]);
+    s.t.textContent = m==='party' ? parties[s.party].name : `${parties[s.party].name} — ${votes[idx]==='aye'?'Aye':votes[idx]==='nay'?'Nay':'Abstained'}`;
+  });
+  renderLegend();
+}
+$('tabParty').onclick = ()=>setMode('party');
+$('tabVote').onclick = ()=>{ if(votes.length) setMode('vote'); };
+
+/* ---------- Convene ---------- */
+$('convene').onclick = ()=>{
+  timers.forEach(clearTimeout); timers=[]; votes=[]; mode='party';
+  const total = parties.reduce((a,p)=>a+p.seats,0);
+  const gov = parties.filter(p=>p.gov), opp = parties.filter(p=>!p.gov);
+  const govSeats = gov.reduce((a,p)=>a+p.seats,0);
+
+  $('provTitle').textContent = $('provName').value.trim() || 'Province';
+  $('stats').innerHTML = [
+    [total,'Total members'],
+    [parties.length,'Parties in the hall'],
+    [gov.length,'Government parties'],
+    [opp.length,'Opposition parties'],
+    [govSeats,'Government seats'],
+    [total-govSeats,'Opposition seats'],
+    [Math.floor(total/2)+1,'Seats for majority'],
+  ].map(([n,l])=>`<div class="stat"><b>${n}</b><span>${l}</span></div>`).join('');
+
+  const topic = $('topic').value.trim() || 'An Untitled Motion of Great Importance';
+  $('motionText').textContent = '“' + topic + '”';
+
+  ['statsCard','speakerBox','hallCard'].forEach(id=>$(id).classList.remove('hidden'));
+  $('resultCard').classList.add('hidden'); $('tabs').classList.add('hidden');
+  $('callVote').disabled=false;
+  buildHall(); renderLegend();
+  $('speakerBox').scrollIntoView({behavior:'smooth',block:'start'});
+};
+
+/* ---------- Voting ---------- */
+function castVotes(){
+  const rebel = parseInt($('rebel').value)/100;
+  const free = $('freeVote').checked;
+  votes=[]; rebels = parties.map(()=>0);
+  seats.forEach(s=>{
+    const p = parties[s.party];
+    let v;
+    if(Math.random()<0.05){ v='abs'; }
+    else if(free){ v = Math.random()<0.5?'aye':'nay'; }
+    else {
+      const lean = p.gov?'aye':'nay';
+      const rebelled = Math.random()<rebel;
+      v = rebelled ? (lean==='aye'?'nay':'aye') : lean;
+      if(rebelled) rebels[s.party]++;
+    }
+    votes.push(v);
+  });
+}
+
+$('callVote').onclick = runVote;
+$('revote').onclick = ()=>{ $('hallCard').scrollIntoView({behavior:'smooth'}); runVote(); };
+$('newTopic').onclick = ()=>{ window.scrollTo({top:0,behavior:'smooth'}); $('topic').focus(); $('topic').select(); };
+
+function runVote(){
+  timers.forEach(clearTimeout); timers=[];
+  $('callVote').disabled=true;
+  $('resultCard').classList.add('hidden'); $('tabs').classList.add('hidden');
+  setMode('party');
+  seats.forEach(s=>{ s.el.style.transitionDelay='0ms'; s.el.style.animationDelay=(Math.random()*0.5)+'s'; s.el.classList.add('pulse'); });
+  $('legend').innerHTML = '<span>🔔 Division bell ringing… ballots are being counted…</span>';
+
+  timers.push(setTimeout(()=>{
+    seats.forEach(s=>s.el.classList.remove('pulse'));
+    castVotes();
+    showResults();
+    $('tabs').classList.remove('hidden');
+    setMode('vote');
+    $('resultCard').scrollIntoView({behavior:'smooth',block:'start'});
+    $('callVote').disabled=false;
+  }, 2200));
+}
+
+function showResults(){
+  const total = seats.length;
+  const tally = parties.map(()=>({aye:0,nay:0,abs:0}));
+  votes.forEach((v,i)=>tally[seats[i].party][v]++);
+  const tot = tally.reduce((a,t)=>({aye:a.aye+t.aye,nay:a.nay+t.nay,abs:a.abs+t.abs}),{aye:0,nay:0,abs:0});
+
+  $('resBody').innerHTML = parties.map((p,i)=>`
+    <tr><td><i style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${p.color};margin-right:8px"></i>${esc(p.name)} <small style="color:var(--mute)">${p.gov?'(Govt)':'(Opp)'}</small></td>
+    <td>${p.seats}</td><td class="aye">${tally[i].aye}</td><td class="nay">${tally[i].nay}</td><td class="abs">${tally[i].abs}</td>
+    <td>${$('freeVote').checked?'—':rebels[i]}</td></tr>`).join('');
+  $('resFoot').innerHTML = `<tr><td>TOTAL</td><td>${total}</td><td class="aye">${tot.aye}</td><td class="nay">${tot.nay}</td><td class="abs">${tot.abs}</td><td>${$('freeVote').checked?'—':rebels.reduce((a,b)=>a+b,0)}</td></tr>`;
+
+  const rule = $('rule').value;
+  let passed, ruleTxt;
+  if(rule==='simple'){ passed = tot.aye>tot.nay; ruleTxt='Simple majority: Aye must exceed Nay'; }
+  else if(rule==='absolute'){ passed = tot.aye>total/2; ruleTxt=`Absolute majority: ${Math.floor(total/2)+1} Ayes required`; }
+  else { passed = tot.aye>=Math.ceil(total*2/3); ruleTxt=`Two-thirds rule: ${Math.ceil(total*2/3)} Ayes required`; }
+
+  const q = verdictQuips[passed?'pass':'fail'];
+  const v = $('verdict');
+  v.className = 'verdict '+(passed?'pass':'fail');
+  v.innerHTML = `${passed?'✅ MOTION CARRIED':'❌ MOTION DEFEATED'}
+    <small>${ruleTxt} · Aye ${tot.aye} – Nay ${tot.nay} – Abstain ${tot.abs}<br>${q[Math.floor(Math.random()*q.length)]}</small>`;
+
+  $('bar').innerHTML = `<div style="width:${tot.aye/total*100}%;background:${C.aye}"></div>
+    <div style="width:${tot.nay/total*100}%;background:${C.nay}"></div>
+    <div style="width:${tot.abs/total*100}%;background:${C.abs}"></div>`;
+  $('resultCard').classList.remove('hidden');
+}
+
+renderParties();
+</script>
+</body>
+</html>

@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pistonarium — a four-stroke playground</title>
+<style>
+:root{--bg:#0b0f15;--panel:#121923;--panel2:#18212e;--line:#263245;--text:#d9e2ee;--dim:#8191a7;--acc:#ffb347;--acc2:#4cc9f0}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/1.45 system-ui,"Segoe UI",Roboto,sans-serif}
+#app{display:grid;grid-template-columns:minmax(0,1fr) 350px;grid-template-rows:minmax(0,1fr) 240px;height:100vh}
+#stage{position:relative;overflow:hidden;background:radial-gradient(ellipse at 50% 40%,#17202d,#0a0e14 75%)}
+#view{width:100%;height:100%;display:block;cursor:grab;touch-action:none}
+#hud{position:absolute;left:14px;top:10px;right:14px;pointer-events:none}
+#hud h1{margin:0;font-size:21px;letter-spacing:.5px}
+#hud h1 span{color:var(--acc)}
+#hud p{margin:2px 0 8px;color:var(--dim);font-size:12px}
+#pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{padding:2px 9px;border:1.5px solid;border-radius:99px;font-size:11px;font-weight:700;background:rgba(10,14,20,.65);letter-spacing:.4px}
+#views{position:absolute;right:12px;bottom:12px;display:flex;gap:6px;flex-direction:column}
+#transport{position:absolute;left:50%;transform:translateX(-50%);bottom:12px;display:flex;gap:8px;align-items:center;background:rgba(18,25,35,.88);border:1px solid var(--line);padding:6px 10px;border-radius:12px;width:min(560px,calc(100% - 130px))}
+#transport input{flex:1;min-width:60px}
+#tlval{font-variant-numeric:tabular-nums;min-width:88px;text-align:right;color:var(--acc);font-size:12px}
+.btn{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font:inherit;cursor:pointer}
+.btn:hover{border-color:var(--acc);color:#fff}
+.btn.on{background:var(--acc);color:#111;border-color:var(--acc);font-weight:700}
+#hint{position:absolute;left:14px;bottom:62px;color:var(--dim);font-size:11px;pointer-events:none}
+#graphs{grid-column:1;grid-row:2;background:var(--panel);border-top:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
+#tabs{display:flex;gap:6px;padding:6px 10px;align-items:center;flex-wrap:wrap}
+#tabs small{color:var(--dim);margin-left:auto}
+#chartwrap{flex:1;min-height:0;position:relative}
+#chart{position:absolute;inset:0;width:100%;height:100%}
+#panel{grid-column:2;grid-row:1/3;background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:12px 14px 30px}
+#panel h3{margin:16px 0 6px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--acc)}
+#panel h3:first-child{margin-top:0}
+.row{margin:7px 0}
+.row label{display:flex;justify-content:space-between;color:var(--dim);font-size:12px}
+.row label b{color:var(--text);font-weight:600}
+input[type=range]{width:100%;accent-color:var(--acc);margin:2px 0}
+.offrow{display:grid;grid-template-columns:14px 44px 1fr 42px;gap:6px;align-items:center;margin:3px 0;font-size:12px}
+.dot{width:10px;height:10px;border-radius:50%}
+.offrow output{text-align:right;color:var(--text);font-variant-numeric:tabular-nums}
+.presets{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0}
+.presets .btn{font-size:11px;padding:3px 8px}
+.chk{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px}
+.chk label{display:flex;gap:6px;align-items:center;cursor:pointer}
+.chk input{accent-color:var(--acc)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.card{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.card span{display:block;color:var(--dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.8px}
+.card b{font-size:14px;font-variant-numeric:tabular-nums}
+select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:4px 8px;font:inherit;width:100%}
+#quips p{margin:6px 0;padding:7px 9px;background:var(--panel2);border-left:3px solid var(--acc);border-radius:4px;font-size:12px}
+#fo{margin-top:6px;color:var(--dim);font-size:12px}
+#fo b{color:var(--text)}
+@media(max-width:900px){
+ html,body{height:auto}
+ #app{grid-template-columns:1fr;grid-template-rows:62vh 240px auto;height:auto}
+ #panel{grid-column:1;grid-row:3;border-left:0}
+ #transport{width:calc(100% - 100px)}
+}
+</style>
+</head>
+<body>
+<div id="app">
+ <div id="stage">
+  <canvas id="view"></canvas>
+  <div id="hud">
+   <h1>Piston<span>arium</span></h1>
+   <p>Where four-stroke cycles go to have a bang. Drag to orbit · wheel / pinch to zoom.</p>
+   <div id="pills"></div>
+  </div>
+  <div id="hint">Pause, then scrub the timeline to hand-crank the engine like a medieval mechanic.</div>
+  <div id="views">
+   <button class="btn" data-v="front">Front</button>
+   <button class="btn" data-v="side">Side</button>
+   <button class="btn" data-v="iso">Iso</button>
+  </div>
+  <div id="transport">
+   <button class="btn" id="bPlay">⏸</button>
+   <button class="btn" id="bBack">−30°</button>
+   <input type="range" id="tl" min="0" max="720" step="1" value="0">
+   <button class="btn" id="bFwd">+30°</button>
+   <span id="tlval"></span>
+  </div>
+ </div>
+
+ <div id="graphs">
+  <div id="tabs">
+   <button class="btn" data-t="pos">Piston height</button>
+   <button class="btn" data-t="vel">Piston velocity</button>
+   <button class="btn on" data-t="torq">Gas torque</button>
+   <button class="btn" data-t="pv">P–V loop</button>
+   <small id="tabnote"></small>
+  </div>
+  <div id="chartwrap"><canvas id="chart"></canvas></div>
+ </div>
+
+ <aside id="panel">
+  <h3>Geometry</h3>
+  <div id="geo"></div>
+  <h3>Engine</h3>
+  <div id="eng"></div>
+  <h3>Cylinder timing (phase offsets)</h3>
+  <div class="presets" id="presets">
+   <button class="btn" data-p="smooth">Smooth</button>
+   <button class="btn" data-p="even">Even 1-2-3…</button>
+   <button class="btn" data-p="unison">Unison</button>
+   <button class="btn" data-p="twin">360° twins</button>
+   <button class="btn" data-p="chaos">Chaos</button>
+  </div>
+  <div id="offs"></div>
+  <div id="fo"></div>
+  <h3>Display</h3>
+  <div class="chk" id="chk"></div>
+  <h3>Inspect a cylinder</h3>
+  <select id="sel"></select>
+  <div class="grid" style="margin-top:6px">
+   <div class="card"><span>Stroke</span><b id="lv_stroke">–</b></div>
+   <div class="card"><span>Cycle angle</span><b id="lv_phi">–</b></div>
+   <div class="card"><span>Height above BDC</span><b id="lv_h">–</b></div>
+   <div class="card"><span>Piston speed</span><b id="lv_v">–</b></div>
+   <div class="card"><span>Gas pressure</span><b id="lv_p">–</b></div>
+   <div class="card"><span>Gas torque</span><b id="lv_t">–</b></div>
+  </div>
+  <h3>Numbers</h3>
+  <div class="grid">
+   <div class="card"><span>Swept / cylinder</span><b id="st_vs"></b></div>
+   <div class="card"><span>Total displacement</span><b id="st_vt"></b></div>
+   <div class="card"><span>Compression ratio</span><b id="st_cr"></b></div>
+   <div class="card"><span>Rod ratio (l / r)</span><b id="st_rr"></b></div>
+   <div class="card"><span>Bore / stroke</span><b id="st_bs"></b></div>
+   <div class="card"><span>Mean piston speed</span><b id="st_mps"></b></div>
+   <div class="card"><span>Mean torque</span><b id="st_tq"></b></div>
+   <div class="card"><span>Ideal power</span><b id="st_pw"></b></div>
+   <div class="card" style="grid-column:span 2"><span>Torque ripple (max−min)/mean</span><b id="st_rip"></b></div>
+  </div>
+  <h3>Engineer's commentary</h3>
+  <div id="quips"></div>
+  <p style="color:var(--dim);font-size:11px;margin-top:14px">Gas model: idealized Otto cycle (polytropic compression/expansion, instant combustion at TDC). Inertia, friction and heat loss are politely ignored — real engines are messier and louder.</p>
+ </aside>
+</div>
+
+<script>
+(()=>{
+"use strict";
+const $=id=>document.getElementById(id);
+const TAU=Math.PI*2,D2R=Math.PI/180;
+const mod=(a,m)=>((a%m)+m)%m;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const mix=(c1,c2,t)=>[lerp(c1[0],c2[0],t),lerp(c1[1],c2[1],t),lerp(c1[2],c2[2],t)];
+
+const COLS=[[255,107,107],[255,209,102],[6,214,160],[76,201,240],[179,136,255],[255,159,28],[128,237,153],[247,143,179]];
+const rgb=c=>`rgb(${c[0]},${c[1]},${c[2]})`;
+const STROKES=[{n:'POWER',c:[255,110,64]},{n:'EXHAUST',c:[150,155,165]},{n:'INTAKE',c:[76,201,240]},{n:'COMPRESSION',c:[255,209,102]}];
+const STEEL=[150,165,185],CRANKC=[118,132,152],CWC=[84,96,114],ROD=[188,196,210],GOLD=[222,178,86];
+const SMOOTH={1:[0],2:[0,1],3:[0,1,2],4:[0,2,3,1],5:[0,1,3,4,2],6:[0,4,2,5,1,3],7:[0,1,2,3,4,5,6],8:[0,7,3,2,5,4,6,1]};
+
+/* ---------------- state ---------------- */
+const S={stroke:90,rod:150,bore:80,cr:10,n:4,bank:0,rpm:3000,anim:0.3,offs:[0,0,0,0,0,0,0,0],
+ walls:true,gas:true,valves:true,xray:true,marks:true,orbit:false,sel:0,tab:'torq'};
+let theta=0,playing=true,yaw=-0.6,pitch=0.3,zoom=1,lastPreset='smooth';
+let G={};
+let SD={mean:0,rip:0};
+
+/* ---------------- geometry & physics ---------------- */
+function geo(){
+ const g=G;
+ g.B=S.bore;g.r=S.stroke/2;g.l=S.rod;g.A=Math.PI/4*g.B*g.B;
+ g.ch=0.38*g.B;g.sk=0.32*g.B;g.P=1.25*g.B;
+ g.Vs=g.A*S.stroke/1000;            // cc
+ g.Vc=g.Vs/(S.cr-1);                // cc
+ g.hc=S.stroke/(S.cr-1);            // mm clearance height
+ g.Xh=g.l+g.r+g.ch+g.hc;            // head distance from crank centre
+ g.lo=g.l-g.r-g.sk-8;
+ g.rm=0.4*g.r;g.Rf=1.9*g.r+24;
+ g.tilt=[];for(let i=0;i<8;i++)g.tilt.push((i%2?1:-1)*S.bank/2*D2R);
+ let mx=0,my=0;
+ for(let i=0;i<S.n;i++){mx+=g.Xh*Math.sin(g.tilt[i]);my+=g.Xh*Math.cos(g.tilt[i]);}
+ mx/=S.n;my/=S.n;g.tg=[mx*0.5,my*0.5,0];
+ let dm=Math.hypot(g.tg[0],g.tg[1]);
+ for(let i=0;i<S.n;i++)dm=Math.max(dm,Math.hypot(g.Xh*Math.sin(g.tilt[i])-g.tg[0],g.Xh*Math.cos(g.tilt[i])-g.tg[1]));
+ g.R0=Math.max(dm,S.n*g.P/2,g.Rf*1.1)+50;
+}
+const omega=()=>TAU*S.rpm/60;
+function kin(b){ // returns [x, dx/dbeta]  (mm, mm/rad)
+ const r=G.r,l=G.l,s=Math.sin(b),c=Math.cos(b),q=Math.sqrt(l*l-r*r*s*s);
+ return [r*c+q,-r*s-r*r*s*c/q];
+}
+const Vcc=x=>G.A*(G.hc+G.l+G.r-x)/1000;
+function pbar(ph,V){
+ const Vc=G.Vc,Vb=G.Vc+G.Vs,CR=Vb/Vc,pin=0.9,ptdc=pin*Math.pow(CR,1.35),ppk=ptdc*3.5;
+ if(ph<180)return ppk*Math.pow(Vc/V,1.3);
+ if(ph<360)return 1.15;
+ if(ph<540)return 0.9;
+ return pin*Math.pow(Vb/V,1.35);
+}
+function peakP(){const CR=(G.Vc+G.Vs)/G.Vc;return 0.9*Math.pow(CR,1.35)*3.5;}
+function torque(ph,b){
+ const k=kin(b),p=pbar(ph,Vcc(k[0])),F=(p-1)*1e5*G.A*1e-6;
+ return F*(-k[1])/1000;
+}
+function val(kind,ph,b){
+ if(kind==='pos')return kin(b)[0]-(G.l-G.r);
+ if(kind==='vel')return kin(b)[1]*omega()/1000;
+ return torque(ph,b);
+}
+function series(kind){
+ const out=[];
+ for(let i=0;i<S.n;i++){
+  const a=new Float32Array(361);
+  for(let k=0;k<=360;k++){const th=k*2,ph=mod(th+S.offs[i],720),b=mod(th+S.offs[i],360)*D2R;a[k]=val(kind,ph,b);}
+  out.push(a);
+ }
+ return out;
+}
+
+/* ---------------- 3D mini engine ---------------- */
+const cv=$('view'),ctx=cv.getContext('2d');
+let polys=[],cyaw=1,syaw=0,cp=1,sp=0,Dd=1,Fc=1,CX=0,CY=0;
+const LX=-0.35,LY=0.55,LZ=0.75;
+function T(p){
+ const x=p[0]-G.tg[0],y=p[1]-G.tg[1],z=p[2]-G.tg[2];
+ const x1=x*cyaw+z*syaw,z1=-x*syaw+z*cyaw;
+ return [x1,y*cp-z1*sp,y*sp+z1*cp];
+}
+function poly(pts,col,a,stroke){
+ const vp=[];let zs=0;
+ for(const p of pts){const q=T(p);vp.push(q);zs+=q[2];}
+ const a0=vp[0],a1=vp[1],a2=vp[2];
+ const ux=a1[0]-a0[0],uy=a1[1]-a0[1],uz=a1[2]-a0[2],vx=a2[0]-a0[0],vy=a2[1]-a0[1],vz=a2[2]-a0[2];
+ const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx,nl=Math.hypot(nx,ny,nz)||1;
+ const sh=0.34+0.66*Math.abs((nx*LX+ny*LY+nz*LZ)/nl);
+ polys.push({p:vp,z:zs/pts.length,c:`rgba(${col[0]*sh|0},${col[1]*sh|0},${col[2]*sh|0},${a})`,s:stroke});
+}
+function prism(A,B,r,N,col,a,o){
+ o=o||{};
+ const ax=[B[0]-A[0],B[1]-A[1],B[2]-A[2]],L=Math.hypot(ax[0],ax[1],ax[2]);
+ if(L<1e-6)return;
+ const k=[ax[0]/L,ax[1]/L,ax[2]/L],h=Math.abs(k[1])<0.9?[0,1,0]:[1,0,0];
+ let u=[k[1]*h[2]-k[2]*h[1],k[2]*h[0]-k[0]*h[2],k[0]*h[1]-k[1]*h[0]];
+ const ul=Math.hypot(u[0],u[1],u[2]);u=[u[0]/ul,u[1]/ul,u[2]/ul];
+ const v=[k[1]*u[2]-k[2]*u[1],k[2]*u[0]-k[0]*u[2],k[0]*u[1]-k[1]*u[0]];
+ const ra=[],rb=[];
+ for(let i=0;i<N;i++){
+  const t=i/N*TAU,c=Math.cos(t)*r,s=Math.sin(t)*r;
+  const d=[u[0]*c+v[0]*s,u[1]*c+v[1]*s,u[2]*c+v[2]*s];
+  ra.push([A[0]+d[0],A[1]+d[1],A[2]+d[2]]);rb.push([B[0]+d[0],B[1]+d[1],B[2]+d[2]]);
+ }
+ const st=!o.nostroke&&a>0.5;
+ for(let i=0;i<N;i++){const j=(i+1)%N;poly([ra[i],ra[j],rb[j],rb[i]],col,a,st);}
+ if(!o.noCaps){poly(ra,col,a,st);poly(rb,col,a,st);}
+}
+function extrude(p2,z0,z1,col,a,st){
+ const n=p2.length;
+ poly(p2.map(p=>[p[0],p[1],z1]),col,a,st);
+ poly(p2.map(p=>[p[0],p[1],z0]),col,a,st);
+ for(let i=0;i<n;i++){const j=(i+1)%n;
+  poly([[p2[i][0],p2[i][1],z0],[p2[j][0],p2[j][1],z0],[p2[j][0],p2[j][1],z1],[p2[i][0],p2[i][1],z1]],col,a,st);}
+}
+
+function drawCyl(i){
+ const g=G,t=g.tilt[i],su=Math.sin(t),cu=Math.cos(t);
+ const zc=(i-(S.n-1)/2)*g.P,off=S.offs[i];
+ const ph=mod(theta+off,720),b=mod(theta+off,360)*D2R;
+ const x=kin(b)[0],al=b+t,r=g.r,B=g.B;
+ const ax=(s,vo,z)=>[su*s+cu*vo,cu*s-su*vo,z===undefined?zc:z];
+ const pin=[r*Math.sin(al),r*Math.cos(al),zc];
+ const W=ax(x,0);
+ const Lp=0.30*g.P,tw=0.12*g.P;
+
+ /* crank throw: two webs + counterweights + pin */
+ const e=[Math.sin(al),Math.cos(al)],n=[Math.cos(al),-Math.sin(al)],wb=0.62*r;
+ for(const sg of[-1,1]){
+  const z0=sg>0?zc+Lp/2:zc-Lp/2-tw,z1=z0+tw;
+  extrude([[-n[0]*wb,-n[1]*wb],[n[0]*wb,n[1]*wb],[pin[0]+n[0]*wb*.78,pin[1]+n[1]*wb*.78],[pin[0]-n[0]*wb*.78,pin[1]-n[1]*wb*.78]],z0,z1,CRANKC,1,true);
+  prism([0,0,z0],[0,0,z1],wb,12,CRANKC,1);
+  prism([pin[0],pin[1],z0],[pin[0],pin[1],z1],wb*.78,12,CRANKC,1);
+  const cl=1.45*r;
+  extrude([[n[0]*wb,n[1]*wb],[-e[0]*cl+n[0]*wb*1.05,-e[1]*cl+n[1]*wb*1.05],[-e[0]*cl-n[0]*wb*1.05,-e[1]*cl-n[1]*wb*1.05],[-n[0]*wb,-n[1]*wb]],z0,z1,CWC,1,true);
+ }
+ prism([pin[0],pin[1],zc-Lp/2-tw],[pin[0],pin[1],zc+Lp/2+tw],0.3*r,10,GOLD,1);
+
+ /* connecting rod */
+ const rd=[W[0]-pin[0],W[1]-pin[1]],rl=Math.hypot(rd[0],rd[1]),dn=[rd[0]/rl,rd[1]/rl],pn=[-dn[1],dn[0]];
+ const Rb=0.52*r,Rs=0.16*B,rw=0.105*B,hb=0.40*r,hs=0.095*B;
+ prism([pin[0],pin[1],zc-Lp/2],[pin[0],pin[1],zc+Lp/2],Rb,16,ROD,1);
+ extrude([[pin[0]+pn[0]*hb,pin[1]+pn[1]*hb],[W[0]+pn[0]*hs,W[1]+pn[1]*hs],[W[0]-pn[0]*hs,W[1]-pn[1]*hs],[pin[0]-pn[0]*hb,pin[1]-pn[1]*hb]],zc-Lp*0.32,zc+Lp*0.32,ROD,1,true);
+ prism([W[0],W[1],zc-Lp*0.3],[W[0],W[1],zc+Lp*0.3],Rs,12,ROD,1);
+ prism([W[0],W[1],zc-0.42*B],[W[0],W[1],zc+0.42*B],rw,10,[228,232,242],1);
+
+ /* piston + rings */
+ const pc=mix(COLS[i],[205,210,220],0.5),pa=S.xray?0.38:0.95,Rp=B/2-1.2;
+ prism(ax(x-g.sk,0),ax(x+g.ch,0),Rp,18,pc,pa);
+ prism(ax(x+g.ch-7,0),ax(x+g.ch-4.5,0),Rp+0.5,14,[40,46,56],1,{noCaps:true});
+ prism(ax(x+g.ch-13,0),ax(x+g.ch-10.5,0),Rp+0.5,14,[40,46,56],1,{noCaps:true});
+
+ /* gas */
+ if(S.gas){
+  const top=x+g.ch;
+  if(g.Xh-top>0.5){
+   const sI=Math.floor(ph/180)%4;let c,a;
+   if(sI===0){c=mix([255,244,200],[255,100,40],Math.min(1,ph/70));a=0.62-0.32*(ph/180);}
+   else if(sI===1){c=STROKES[1].c;a=0.22;}
+   else if(sI===2){c=STROKES[2].c;a=0.26;}
+   else{c=STROKES[3].c;a=0.24+0.26*((ph-540)/180);}
+   prism(ax(top,0),ax(g.Xh,0),B/2-0.8,18,c,a);
+  }
+ }
+ /* cylinder wall, TDC / BDC bands */
+ if(S.walls)prism(ax(g.lo,0),ax(g.Xh,0),B/2+1.2,24,[130,165,210],0.12,{noCaps:true,nostroke:true});
+ if(S.marks){
+  const td=g.l+g.r+g.ch,bd=g.l-g.r+g.ch;
+  prism(ax(td-0.8,0),ax(td+0.8,0),B/2+2,24,[255,179,71],0.95,{noCaps:true});
+  prism(ax(bd-0.8,0),ax(bd+0.8,0),B/2+2,24,[76,201,240],0.95,{noCaps:true});
+ }
+ /* head */
+ prism(ax(g.Xh,0),ax(g.Xh+10,0),B/2+7,22,[84,96,116],1);
+ if(S.valves){
+  const lift=(a,bb,p)=>p>=a&&p<=bb?0.1*B*Math.sin(Math.PI*(p-a)/(bb-a)):0;
+  const vi=lift(350,570,ph),ve=lift(160,380,ph);
+  prism(ax(g.Xh+10,0),ax(g.Xh+32,0),3.2,8,[235,235,240],1);
+  if(ph<30)prism(ax(g.Xh-3.5,0),ax(g.Xh,0),4.2,8,[255,255,190],1-ph/30);
+  [[0.23*B,vi,[100,200,235]],[-0.23*B,ve,[240,150,90]]].forEach(([vo,lf,c])=>{
+   prism(ax(g.Xh-lf-2.5,vo),ax(g.Xh-lf,vo),0.15*B,12,c,1);
+   prism(ax(g.Xh-lf,vo),ax(g.Xh+30-lf,vo),1.8,6,[190,195,205],1);
+  });
+ }
+}
+function drawCrank(){
+ const g=G,half=(S.n-1)/2*g.P,zA=-half-g.P*0.45,zB=half+g.P*0.45;
+ prism([0,0,zA],[0,0,zB],g.rm,14,STEEL,1);
+ prism([0,0,zA-14],[0,0,zA],g.rm*1.25,14,[70,82,100],1);
+ const zf0=zB+4,zf1=zf0+0.22*g.P,Rf=g.Rf;
+ prism([0,0,zf0],[0,0,zf1],Rf,40,[96,108,126],1);
+ prism([0,0,zf1],[0,0,zf1+6],g.rm*1.7,16,STEEL,1);
+ const th=theta*D2R,e=[Math.sin(th),Math.cos(th)],n=[Math.cos(th),-Math.sin(th)],w=0.07*Rf;
+ extrude([[e[0]*.45*Rf+n[0]*w,e[1]*.45*Rf+n[1]*w],[e[0]*.93*Rf+n[0]*w,e[1]*.93*Rf+n[1]*w],[e[0]*.93*Rf-n[0]*w,e[1]*.93*Rf-n[1]*w],[e[0]*.45*Rf-n[0]*w,e[1]*.45*Rf-n[1]*w]],zf1,zf1+1.5,[255,179,71],1,true);
+}
+function fit(c){
+ const d=Math.min(window.devicePixelRatio||1,2),w=c.clientWidth,h=c.clientHeight;
+ if(c.width!==Math.round(w*d)||c.height!==Math.round(h*d)){c.width=Math.round(w*d);c.height=Math.round(h*d);}
+ return d;
+}
+function render(){
+ const d=fit(cv),w=cv.clientWidth,h=cv.clientHeight;
+ if(!w||!h)return;
+ ctx.setTransform(d,0,0,d,0,0);ctx.clearRect(0,0,w,h);
+ cyaw=Math.cos(yaw);syaw=Math.sin(yaw);cp=Math.cos(pitch);sp=Math.sin(pitch);
+ Dd=G.R0*4;Fc=zoom*Math.min(w*0.92,h)/(2*G.R0)*Dd;CX=w/2;CY=h/2-10;
+ polys=[];
+ for(let i=0;i<S.n;i++)drawCyl(i);
+ drawCrank();
+ polys.sort((a,b)=>a.z-b.z);
+ for(const q of polys){
+  ctx.beginPath();
+  for(let k=0;k<q.p.length;k++){
+   const z=q.p[k],s=Fc/(Dd-z[2]),X=CX+z[0]*s,Y=CY-z[1]*s;
+   k?ctx.lineTo(X,Y):ctx.moveTo(X,Y);
+  }
+  ctx.closePath();ctx.fillStyle=q.c;ctx.fill();
+  if(q.s){ctx.strokeStyle=q.c;ctx.lineWidth=0.7;ctx.stroke();}
+ }
+}
+
+/* ---------------- charts ---------------- */
+const gc=$('chart'),gx=gc.getContext('2d');
+const NOTES={pos:'Each cylinder is shifted by its phase offset. Shaded bands = strokes of the inspected cylinder.',
+ vel:'Not a pure sine wave! Short rods skew it — piston is quicker near TDC than BDC.',
+ torq:'White = sum of all cylinders. Amber dashed = mean. A flat white line is the dream.',
+ pv:'Ideal Otto loop. Dots are your cylinders riding it — each at its own point in the cycle.'};
+function nice(v){return Math.abs(v)>=100?v.toFixed(0):Math.abs(v)>=10?v.toFixed(1):v.toFixed(2);}
+function drawChart(){
+ const d=fit(gc),w=gc.clientWidth,h=gc.clientHeight;
+ if(!w||!h)return;
+ gx.setTransform(d,0,0,d,0,0);gx.clearRect(0,0,w,h);
+ const L=52,R=14,Tp=12,Bt=26,pw=w-L-R,ph=h-Tp-Bt;
+ gx.font='11px system-ui,sans-serif';gx.textBaseline='middle';
+ if(S.tab==='pv'){drawPV(L,Tp,pw,ph,w,h);return;}
+ const ser=series(S.tab);let sum=null;
+ if(S.tab==='torq'){sum=new Float32Array(361);ser.forEach(a=>{for(let k=0;k<=360;k++)sum[k]+=a[k];});}
+ let mn=Infinity,mx=-Infinity;
+ const cons=a=>{for(let k=0;k<a.length;k++){if(a[k]<mn)mn=a[k];if(a[k]>mx)mx=a[k];}};
+ ser.forEach(cons);if(sum)cons(sum);
+ if(S.tab==='pos'){mn=0;mx=S.stroke;}else{mn=Math.min(mn,0);mx=Math.max(mx,0);}
+ if(mx-mn<1e-9){mx=mn+1;}
+ const pad=(mx-mn)*0.06;mn-=S.tab==='pos'?0:pad;mx+=pad;
+ const X=t=>L+t/720*pw,Y=v=>Tp+(1-(v-mn)/(mx-mn))*ph;
+ // stroke bands for inspected cylinder
+ for(let t=0;t<720;t+=5){
+  const c=STROKES[Math.floor(mod(t+S.offs[S.sel],720)/180)%4].c;
+  gx.fillStyle=`rgba(${c[0]},${c[1]},${c[2]},0.09)`;
+  gx.fillRect(X(t),Tp,X(t+5)-X(t)+0.6,ph);
+ }
+ // grid
+ gx.strokeStyle='#243044';gx.lineWidth=1;gx.fillStyle='#8191a7';gx.textAlign='right';
+ for(let k=0;k<=4;k++){
+  const v=mn+(mx-mn)*k/4,y=Y(v);
+  gx.beginPath();gx.moveTo(L,y);gx.lineTo(L+pw,y);gx.stroke();
+  gx.fillText(nice(v),L-6,y);
+ }
+ gx.textAlign='center';
+ for(let t=0;t<=720;t+=180){gx.beginPath();gx.moveTo(X(t),Tp);gx.lineTo(X(t),Tp+ph);gx.stroke();gx.fillText(t+'°',X(t),Tp+ph+13);}
+ if(mn<0&&mx>0){gx.strokeStyle='#5b6b82';gx.beginPath();gx.moveTo(L,Y(0));gx.lineTo(L+pw,Y(0));gx.stroke();}
+ gx.fillStyle='#8191a7';gx.textAlign='left';
+ gx.fillText(S.tab==='pos'?'mm':S.tab==='vel'?'m/s':'N·m',4,Tp+4);
+ // curves
+ ser.forEach((a,i)=>{
+  gx.strokeStyle=rgb(COLS[i]);gx.lineWidth=i===S.sel?2.2:1.4;gx.globalAlpha=i===S.sel?1:0.75;
+  gx.beginPath();for(let k=0;k<=360;k++){const x=X(k*2),y=Y(a[k]);k?gx.lineTo(x,y):gx.moveTo(x,y);}gx.stroke();
+ });
+ gx.globalAlpha=1;
+ if(sum){
+  gx.strokeStyle='#fff';gx.lineWidth=2.4;gx.beginPath();
+  for(let k=0;k<=360;k++){const x=X(k*2),y=Y(sum[k]);k?gx.lineTo(x,y):gx.moveTo(x,y);}gx.stroke();
+  gx.setLineDash([6,5]);gx.strokeStyle='#ffb347';gx.lineWidth=1.5;
+  gx.beginPath();gx.moveTo(L,Y(SD.mean));gx.lineTo(L+pw,Y(SD.mean));gx.stroke();gx.setLineDash([]);
+  gx.fillStyle='#ffb347';gx.textAlign='right';gx.fillText('mean '+nice(SD.mean),L+pw-4,Y(SD.mean)-8);
+ }
+ // cursor
+ const ct=mod(theta,720);
+ gx.strokeStyle='rgba(255,255,255,.75)';gx.lineWidth=1;gx.beginPath();gx.moveTo(X(ct),Tp);gx.lineTo(X(ct),Tp+ph);gx.stroke();
+ for(let i=0;i<S.n;i++){
+  const v=val(S.tab,mod(ct+S.offs[i],720),mod(ct+S.offs[i],360)*D2R);
+  gx.fillStyle=rgb(COLS[i]);gx.beginPath();gx.arc(X(ct),Y(v),i===S.sel?5.5:4,0,TAU);gx.fill();
+ }
+ gx.fillStyle='#8191a7';gx.textAlign='left';gx.fillText('crank angle θ (two revolutions = one full 4-stroke cycle)',L+4,Tp+ph+13+0);
+}
+function drawPV(L,Tp,pw,ph,w,h){
+ const Vb=G.Vc+G.Vs,pk=peakP()*1.06;
+ const X=V=>L+V/Vb*pw,Y=p=>Tp+(1-p/pk)*ph;
+ gx.strokeStyle='#243044';gx.lineWidth=1;gx.fillStyle='#8191a7';gx.textAlign='right';
+ for(let k=0;k<=4;k++){const p=pk*k/4,y=Y(p);gx.beginPath();gx.moveTo(L,y);gx.lineTo(L+pw,y);gx.stroke();gx.fillText(p.toFixed(0),L-6,y);}
+ gx.textAlign='center';
+ for(let k=0;k<=4;k++){const V=Vb*k/4,x=X(V);gx.beginPath();gx.moveTo(x,Tp);gx.lineTo(x,Tp+ph);gx.stroke();gx.fillText(V.toFixed(0),x,Tp+ph+13);}
+ gx.textAlign='left';gx.fillText('bar',4,Tp+4);gx.fillText('volume (cc)',L+4,Tp+ph-8);
+ for(let s=0;s<4;s++){
+  gx.strokeStyle=rgb(STROKES[s].c);gx.lineWidth=2.2;gx.beginPath();
+  for(let p=s*180;p<=s*180+180;p+=2){
+   const b=mod(p,360)*D2R,V=Vcc(kin(b)[0]),y=pbar(Math.min(p,719.99),V);
+   p===s*180?gx.moveTo(X(V),Y(y)):gx.lineTo(X(V),Y(y));
+  }
+  gx.stroke();
+  gx.fillStyle=rgb(STROKES[s].c);gx.fillText(STROKES[s].n,L+pw-110,Tp+10+s*13);
+ }
+ for(let i=0;i<S.n;i++){
+  const ph2=mod(theta+S.offs[i],720),b=mod(theta+S.offs[i],360)*D2R,V=Vcc(kin(b)[0]),p=pbar(ph2,V);
+  gx.fillStyle=rgb(COLS[i]);gx.strokeStyle='#000';gx.lineWidth=1;
+  gx.beginPath();gx.arc(X(V),Y(p),i===S.sel?7:5,0,TAU);gx.fill();gx.stroke();
+ }
+}
+
+/* ---------------- UI ---------------- */
+function mkSlider(host,o){
+ const row=document.createElement('div');row.className='row';
+ row.innerHTML=`<label><span>${o.label}</span><b></b></label><input type="range" min="${o.min}" max="${o.max}" step="${o.step}">`;
+ const inp=row.querySelector('input'),out=row.querySelector('b');
+ const sync=()=>{inp.value=o.get();out.textContent=o.fmt?o.fmt(o.get()):o.get();};
+ inp.addEventListener('input',()=>{o.set(+inp.value);sync();update();});
+ host.appendChild(row);sync();
+}
+mkSlider($('geo'),{label:'Stroke length (2 × crank radius)',min:40,max:140,step:1,get:()=>S.stroke,set:v=>S.stroke=v,fmt:v=>v+' mm'});
+mkSlider($('geo'),{label:'Connecting rod length',min:80,max:300,step:1,get:()=>S.rod,set:v=>S.rod=v,fmt:v=>v+' mm'});
+mkSlider($('geo'),{label:'Bore (piston diameter → volume)',min:50,max:110,step:1,get:()=>S.bore,set:v=>S.bore=v,fmt:v=>v+' mm'});
+mkSlider($('geo'),{label:'Compression ratio',min:6,max:16,step:0.5,get:()=>S.cr,set:v=>S.cr=v,fmt:v=>v.toFixed(1)+' : 1'});
+mkSlider($('eng'),{label:'Cylinders',min:1,max:8,step:1,get:()=>S.n,set:v=>{S.n=v;S.sel=Math.min(S.sel,v-1);applyPreset(lastPreset,true);buildAll();},fmt:v=>v});
+mkSlider($('eng'),{label:'Bank angle',min:0,max:180,step:5,get:()=>S.bank,set:v=>S.bank=v,fmt:v=>v===0?'0° · inline':v===180?'180° · boxer':v+'° · V'});
+mkSlider($('eng'),{label:'Engine speed (for the numbers)',min:500,max:9000,step:100,get:()=>S.rpm,set:v=>S.rpm=v,fmt:v=>v+' rpm'});
+mkSlider($('eng'),{label:'Animation speed (slow-mo)',min:0.02,max:2,step:0.02,get:()=>S.anim,set:v=>S.anim=v,fmt:v=>v.toFixed(2)+' rev/s'});
+
+const CHK=[['walls','Cylinder walls'],['gas','Gas colours'],['valves','Valves & plug'],['xray','X-ray pistons'],['marks','TDC / BDC bands'],['orbit','Auto-orbit']];
+CHK.forEach(([k,t])=>{
+ const l=document.createElement('label');l.innerHTML=`<input type="checkbox" ${S[k]?'checked':''}> ${t}`;
+ l.firstChild.addEventListener('change',e=>S[k]=e.target.checked);$('chk').appendChild(l);
+});
+
+let offUI=[];
+function buildOffs(){
+ const h=$('offs');h.innerHTML='';offUI=[];
+ for(let i=0;i<S.n;i++){
+  const r=document.createElement('div');r.className='offrow';
+  r.innerHTML=`<i class="dot" style="background:${rgb(COLS[i])}"></i><span>Cyl ${i+1}</span><input type="range" min="0" max="720" step="1"><output></output>`;
+  const inp=r.querySelector('input'),out=r.querySelector('output');
+  inp.addEventListener('input',()=>{S.offs[i]=+inp.value;out.textContent=inp.value+'°';update();});
+  h.appendChild(r);offUI.push({inp,out});
+ }
+ syncOffs();
+}
+function syncOffs(){offUI.forEach((o,i)=>{o.inp.value=S.offs[i];o.out.textContent=Math.round(S.offs[i])+'°';});}
+function applyPreset(name,silent){
+ lastPreset=name;const n=S.n;
+ for(let i=0;i<8;i++)S.offs[i]=0;
+ if(name==='smooth'||name==='even'){
+  const order=name==='smooth'?SMOOTH[n]:[...Array(n).keys()];
+  order.forEach((cyl,k)=>{S.offs[cyl]=Math.round(mod(-k*720/n,720))%720;});
+ }else if(name==='twin'){for(let i=0;i<n;i++)S.offs[i]=i%2?360:0;}
+ else if(name==='chaos'){for(let i=0;i<n;i++)S.offs[i]=Math.floor(Math.random()*48)*15;}
+ if(!silent){syncOffs();update();}
+}
+$('presets').addEventListener('click',e=>{const p=e.target.dataset.p;if(p)applyPreset(p);});
+
+function buildPills(){
+ const h=$('pills');h.innerHTML='';
+ for(let i=0;i<S.n;i++){const s=document.createElement('span');s.className='pill';s.style.borderColor=rgb(COLS[i]);s.style.color=rgb(COLS[i]);h.appendChild(s);}
+}
+function buildSel(){
+ const s=$('sel');s.innerHTML='';
+ for(let i=0;i<S.n;i++){const o=document.createElement('option');o.value=i;o.textContent='Cylinder '+(i+1);s.appendChild(o);}
+ s.value=S.sel;
+}
+$('sel').addEventListener('change',e=>S.sel=+e.target.value);
+function buildAll(){buildOffs();buildPills();buildSel();update();}
+
+$('tabs').addEventListener('click',e=>{
+ const t=e.target.dataset.t;if(!t)return;S.tab=t;
+ [...$('tabs').querySelectorAll('.btn')].forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+ $('tabnote').textContent=NOTES[t];
+});
+$('tabnote').textContent=NOTES.torq;
+
+const tl=$('tl');
+tl.addEventListener('input',()=>{playing=false;theta=+tl.value;$('bPlay').textContent='▶';});
+$('bPlay').addEventListener('click',()=>{playing=!playing;$('bPlay').textContent=playing?'⏸':'▶';});
+$('bBack').addEventListener('click',()=>{playing=false;$('bPlay').textContent='▶';theta=mod(theta-30,720);});
+$('bFwd').addEventListener('click',()=>{playing=false;$('bPlay').textContent='▶';theta=mod(theta+30,720);});
+document.querySelectorAll('#views .btn').forEach(b=>b.addEventListener('click',()=>{
+ const v=b.dataset.v;
+ if(v==='front'){yaw=0;pitch=0;}else if(v==='side'){yaw=Math.PI/2;pitch=0;}else{yaw=-0.6;pitch=0.3;}
+}));
+
+/* camera interaction */
+const ptrs=new Map();let lastPinch=0;
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,[e.clientX,e.clientY]);cv.style.cursor='grabbing';});
+cv.addEventListener('pointermove',e=>{
+ if(!ptrs.has(e.pointerId))return;
+ const pr=ptrs.get(e.pointerId);
+ if(ptrs.size===1){yaw+=(e.clientX-pr[0])*0.008;pitch=clamp(pitch+(e.clientY-pr[1])*0.008,-1.55,1.55);}
+ ptrs.set(e.pointerId,[e.clientX,e.clientY]);
+ if(ptrs.size===2){
+  const [a,b]=[...ptrs.values()],d=Math.hypot(a[0]-b[0],a[1]-b[1]);
+  if(lastPinch)zoom=clamp(zoom*d/lastPinch,0.3,5);lastPinch=d;
+ }
+});
+const endP=e=>{ptrs.delete(e.pointerId);lastPinch=0;if(!ptrs.size)cv.style.cursor='grab';};
+cv.addEventListener('pointerup',endP);cv.addEventListener('pointercancel',endP);
+cv.addEventListener('wheel',e=>{e.preventDefault();zoom=clamp(zoom*Math.exp(-e.deltaY*0.0012),0.3,5);},{passive:false});
+
+/* ---------------- derived numbers & commentary ---------------- */
+function update(){
+ geo();
+ const ser=series('torq');let mn=Infinity,mx=-Infinity,tot=0;
+ for(let k=0;k<360;k++){let s=0;for(let i=0;i<S.n;i++)s+=ser[i][k];tot+=s;if(s<mn)mn=s;if(s>mx)mx=s;}
+ SD.mean=tot/360;SD.rip=SD.mean>0?(mx-mn)/SD.mean:Infinity;
+ const g=G;
+ $('st_vs').textContent=g.Vs.toFixed(0)+' cc';
+ $('st_vt').textContent=(g.Vs*S.n/1000).toFixed(2)+' L';
+ $('st_cr').textContent=S.cr.toFixed(1)+' : 1';
+ $('st_rr').textContent=(g.l/g.r).toFixed(2);
+ $('st_bs').textContent=(g.B/S.stroke).toFixed(2);
+ $('st_mps').textContent=(2*S.stroke*S.rpm/60000).toFixed(1)+' m/s';
+ $('st_tq').textContent=SD.mean.toFixed(0)+' N·m';
+ $('st_pw').textContent=(SD.mean*omega()/1000).toFixed(1)+' kW';
+ $('st_rip').textContent=isFinite(SD.rip)?SD.rip.toFixed(2)+' ×':'∞ (net ≤ 0!)';
+ // firing order
+ const it=[];for(let i=0;i<S.n;i++)it.push({i:i+1,t:mod(-S.offs[i],720)});
+ it.sort((a,b)=>a.t-b.t);
+ const grp=[];it.forEach(o=>{const l=grp[grp.length-1];if(l&&Math.abs(l.t-o.t)<0.5)l.c.push(o.i);else grp.push({t:o.t,c:[o.i]});});
+ $('fo').innerHTML='Firing order: <b>'+grp.map(x=>x.c.join('+')).join(' → ')+'</b>';
+ // commentary
+ const Q=[],bs=g.B/S.stroke,rr=g.l/g.r;
+ if(bs>1.08)Q.push(`<b>Oversquare</b> (bore/stroke ${bs.toFixed(2)}): fat piston, short stroke. Loves to rev, a little shy on low-end torque — a sport bike with a caffeine habit.`);
+ else if(bs<0.92)Q.push(`<b>Undersquare</b> (bore/stroke ${bs.toFixed(2)}): long-stroke and relaxed. Torque for breakfast, redline is somebody else's problem.`);
+ else Q.push(`<b>Roughly square</b> (bore/stroke ${bs.toFixed(2)}): the diplomat of cylinder geometry.`);
+ if(g.l-g.r-g.sk<1.55*g.r)Q.push(`⚠ <b>Crank vs. piston:</b> at BDC the crank webs would punch through the piston skirt. Lengthen the rod or shorten the stroke — physics' version of "you shall not pass".`);
+ else if(rr<3)Q.push(`<b>Short rod</b> (ratio ${rr.toFixed(2)}): the rod swings at steep angles, shoving the piston into the wall. Expect side-thrust, friction, and an asymmetric velocity curve.`);
+ else if(rr>4.2)Q.push(`<b>Very long rod</b> (ratio ${rr.toFixed(2)}): piston motion is nearly a pure sine wave and side-loads are gentle — but your engine is now tall enough to need a stepladder.`);
+ else Q.push(`<b>Rod ratio ${rr.toFixed(2)}:</b> comfortably in the textbook zone. Watch the velocity tab to see the slight TDC/BDC asymmetry.`);
+ if(S.n===1)Q.push(`<b>Single cylinder:</b> one power stroke every two revolutions. In between, the flywheel carries the engine like a stubborn parent carrying groceries in one trip.`);
+ else if(!(SD.mean>0))Q.push(`<b>Net torque ≤ 0.</b> Congratulations, you have built an extremely sophisticated air compressor.`);
+ else if(SD.rip<1.6)Q.push(`<b>Torque ripple ${SD.rip.toFixed(2)}×:</b> buttery smooth. The power strokes overlap like a well-rehearsed relay team.`);
+ else if(SD.rip<4)Q.push(`<b>Torque ripple ${SD.rip.toFixed(2)}×:</b> decent. The flywheel is earning its keep.`);
+ else Q.push(`<b>Torque ripple ${SD.rip.toFixed(2)}×:</b> bang… silence… bang… silence. Try the <i>Smooth</i> preset and listen to the graph sigh in relief.`);
+ $('quips').innerHTML=Q.map(q=>`<p>${q}</p>`).join('');
+}
+
+/* ---------------- HUD ---------------- */
+function updateHud(){
+ const pills=$('pills').children;
+ for(let i=0;i<S.n;i++){const ph=mod(theta+S.offs[i],720);pills[i].textContent=(i+1)+' · '+STROKES[Math.floor(ph/180)%4].n;}
+ const i=S.sel,ph=mod(theta+S.offs[i],720),b=mod(theta+S.offs[i],360)*D2R,k=kin(b),V=Vcc(k[0]);
+ $('lv_stroke').textContent=STROKES[Math.floor(ph/180)%4].n;
+ $('lv_phi').textContent=ph.toFixed(0)+'° / 720°';
+ $('lv_h').textContent=(k[0]-(G.l-G.r)).toFixed(1)+' mm';
+ $('lv_v').textContent=(k[1]*omega()/1000).toFixed(1)+' m/s';
+ $('lv_p').textContent=pbar(ph,V).toFixed(1)+' bar';
+ $('lv_t').textContent=torque(ph,b).toFixed(0)+' N·m';
+ $('tlval').textContent='θ = '+theta.toFixed(0)+'°';
+}
+
+/* ---------------- main loop ---------------- */
+let last=performance.now();
+function frame(now){
+ const dt=Math.min(0.05,(now-last)/1000);last=now;
+ if(playing)theta=mod(theta+S.anim*360*dt,720);
+ if(S.orbit&&!ptrs.size)yaw+=0.25*dt;
+ tl.value=theta;
+ render();drawChart();updateHud();
+ requestAnimationFrame(frame);
+}
+applyPreset('smooth',true);
+buildAll();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
